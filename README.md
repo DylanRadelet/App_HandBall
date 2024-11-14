@@ -12,16 +12,15 @@ Cette application console génère un fichier PDF qui résume les événements d
 
 Assurez-vous d'avoir installé les packages suivants :
 
-- **iTextSharp** pour la génération de PDF.
-- **HtmlAgilityPack** pour le parsing HTML. ```bash  dotnet add package HtmlAgilityPack ```
-- **Selenium WebDriver** pour la navigation automatique (et le driver Chrome).
+- **iTextSharp** pour la génération de PDF. ( ```dotnet add package iTextSharp``` )
+- **HtmlAgilityPack** pour le parsing HTML. ( ```dotnet add package HtmlAgilityPack``` )
+- **Selenium WebDriver** pour la navigation automatique (et le driver Chrome). ( ```dotnet add package Selenium.WebDriver``` )
 - **Google Chrome** (et le chemin du driver Chrome dans votre PATH).
 
 ## Installation
 
 1. Cloner le repository.
-2. Installer les packages nécessaires via NuGet :
-   ```bash
-   dotnet add package HtmlAgilityPack
-   dotnet add package iTextSharp
-   dotnet add package Selenium.WebDriver
+
+##Testing 
+
+Site test : https://www.apphandball.nerwii.com/
