@@ -1,8 +1,10 @@
-﻿using HtmlAgilityPack;
+using HtmlAgilityPack;
 using iTextSharp.text.pdf;
 using iTextSharp.text;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium;
+using System.Diagnostics;
+using System.Text;
 
 class Program
 {
@@ -10,6 +12,9 @@ class Program
     {
         ChromeOptions options = new ChromeOptions();
         options.AddArgument("--headless");
+        options.AddArgument("--no-sandbox");
+        options.AddArgument("--disable-dev-shm-usage");
+        options.AddArgument("--disable-logging");
 
         string defaultPathFile = "defaultPath.txt";
         string defaultDirectory = Directory.GetCurrentDirectory();
@@ -51,11 +56,16 @@ class Program
         table.WidthPercentage = 100f;
 
         Font boldFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 12);
+        Font greenFont = FontFactory.GetFont(FontFactory.HELVETICA, 12, new BaseColor(0, 128, 0));
         table.AddCell(new PdfPCell(new Phrase("Score", boldFont)));
         table.AddCell(new PdfPCell(new Phrase("Team", boldFont)));
         table.AddCell(new PdfPCell(new Phrase("Time", boldFont)));
         table.AddCell(new PdfPCell(new Phrase("Event", boldFont)));
         table.AddCell(new PdfPCell(new Phrase("Person", boldFont)));
+
+        string teamHeim = "";
+        string teamGast = "";
+        string selectedTeam = "";
 
         using (IWebDriver driver = new ChromeDriver(options))
         {
@@ -63,9 +73,37 @@ class Program
             System.Threading.Thread.Sleep(3000);
 
             string html = driver.PageSource;
-
             HtmlDocument doc = new HtmlDocument();
             doc.LoadHtml(html);
+
+            var header = doc.DocumentNode.SelectSingleNode("//h1[@class='print-meeting-report-header']");
+            if (header != null)
+            {
+                string headerText = header.InnerText.Replace("&nbsp;", " ").Trim();
+
+                if (headerText.StartsWith("Interim Report"))
+                {
+                    headerText = headerText.Substring("Interim Report".Length).Trim();
+                }
+
+                string[] parts = headerText.Split(new[] { '-' }, 2, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2)
+                {
+                    teamHeim = parts[0].Trim();
+
+                    teamGast = parts[1].Split(new[] { '\n', '(', ':' }, StringSplitOptions.RemoveEmptyEntries)[0].Trim();
+
+                    var regex = new System.Text.RegularExpressions.Regex(@"\s(\d{1,3})$");
+                    teamGast = regex.Replace(teamGast, "").Trim();
+                }
+
+                Console.WriteLine($"Équipe 1 : {teamHeim}");
+                Console.WriteLine($"Équipe 2 : {teamGast}");
+                Console.Write("Sélectionnez votre équipe (1 ou 2) : ");
+                string teamChoice = Console.ReadLine();
+                selectedTeam = teamChoice == "1" ? "Domicile" : "Exterieur";
+            }
+
 
             var rows = doc.DocumentNode.SelectNodes("//tr[@eventline]");
 
@@ -74,7 +112,7 @@ class Program
                 Console.WriteLine("Informations extraites :");
                 foreach (var row in rows)
                 {
-                    AddRowToTable(row, table, ref heimScore, ref gastScore);
+                    AddRowToTable(row, table, ref heimScore, ref gastScore, selectedTeam, greenFont);
                 }
             }
             else
@@ -99,7 +137,7 @@ class Program
 
         for (int i = 0; i < manualRows; i++)
         {
-            AddManualRow(table, ref heimScore, ref gastScore);
+            AddManualRow(table, ref heimScore, ref gastScore, selectedTeam, greenFont);
             Console.WriteLine();
         }
 
@@ -109,7 +147,7 @@ class Program
         pdfDoc.Add(new Paragraph("Tableau des scores", boldFont));
         pdfDoc.Add(new Paragraph("\n"));
         pdfDoc.Add(table);
-        pdfDoc.Add(new Paragraph($"\nScore final : Heim {heimScore} - Gast {gastScore}", boldFont));
+        pdfDoc.Add(new Paragraph($"\nScore final : Domicile {heimScore} - Exterieur {gastScore}", boldFont));
         pdfDoc.Close();
 
         Console.WriteLine($"Le fichier PDF a été généré avec succès sous le nom '{filePath}'.");
@@ -138,35 +176,38 @@ class Program
         return 0;
     }
 
-    private static void AddManualRow(PdfPTable table, ref int heimScore, ref int gastScore)
+    private static void AddManualRow(PdfPTable table, ref int domicileScore, ref int exterieurScore, string selectedTeam, Font greenFont)
     {
-        string team = GetValidInput("Entrez l'équipe (Heim ou Gast) : ", new[] { "Heim", "Gast" });
+        string team = GetValidInput("Entrez l'équipe (Domicile ou Exterieur) : ", new[] { "Domicile", "Exterieur" });
         string time = GetValidInput("Entrez le temps (format libre) : ");
         string eventDetail = GetValidInput("Entrez l'événement (Goal ou 7m with Goal) : ", new[] { "Goal", "7m with Goal" });
         string person = GetValidInput("Entrez le nom de la personne : ");
 
+        Font rowFont = (team == selectedTeam) ? greenFont : FontFactory.GetFont(FontFactory.HELVETICA, 12);
+
         if (eventDetail == "Goal" || eventDetail.Contains("7m with Goal"))
         {
-            if (team == "Heim")
+            if (team == "Domicile")
             {
-                heimScore++;
+                domicileScore++;
             }
-            else if (team == "Gast")
+            else if (team == "Exterieur")
             {
-                gastScore++;
+                exterieurScore++;
             }
         }
 
-        string score = $"{heimScore}-{gastScore}";
+        string score = $"{domicileScore}-{exterieurScore}";
 
-        table.AddCell(score);
-        table.AddCell(team);
-        table.AddCell(time);
-        table.AddCell(eventDetail);
-        table.AddCell(person);
+        table.AddCell(new PdfPCell(new Phrase(score, rowFont)));
+        table.AddCell(new PdfPCell(new Phrase(team, rowFont)));
+        table.AddCell(new PdfPCell(new Phrase(time, rowFont)));
+        table.AddCell(new PdfPCell(new Phrase(eventDetail, rowFont)));
+        table.AddCell(new PdfPCell(new Phrase(person, rowFont)));
     }
 
-    private static void AddRowToTable(HtmlNode row, PdfPTable table, ref int heimScore, ref int gastScore)
+
+    private static void AddRowToTable(HtmlNode row, PdfPTable table, ref int domicileScore, ref int exterieurScore, string selectedTeam, Font greenFont)
     {
         var tdElements = row.SelectNodes(".//td");
         if (tdElements == null || tdElements.Count == 0) return;
@@ -178,29 +219,29 @@ class Program
 
         if (first == "&nbsp;" && second == "&nbsp;" && third == "&nbsp;" && fourth == "&nbsp;") return;
 
-        string team = first;
+        string team = first == "Heim" ? "Domicile" : first == "Gast" ? "Exterieur" : first;
+
+        Font rowFont = team == selectedTeam ? greenFont : FontFactory.GetFont(FontFactory.HELVETICA, 12);
+
         if (third == "Goal" || third.Contains("7m with Goal"))
         {
-            if (team == "Heim")
+            if (team == "Domicile")
             {
-                heimScore++;
+                domicileScore++;
             }
-            else if (team == "Gast")
+            else if (team == "Exterieur")
             {
-                gastScore++;
+                exterieurScore++;
             }
         }
 
-        string score = $"{heimScore}-{gastScore}";
-        string time = second;
-        string eventDetail = third;
-        string person = fourth;
+        string score = $"{domicileScore}-{exterieurScore}";
 
-        table.AddCell(score);
-        table.AddCell(team);
-        table.AddCell(time);
-        table.AddCell(eventDetail);
-        table.AddCell(person);
+        table.AddCell(new PdfPCell(new Phrase(score, rowFont)));
+        table.AddCell(new PdfPCell(new Phrase(team, rowFont)));
+        table.AddCell(new PdfPCell(new Phrase(second, rowFont)));
+        table.AddCell(new PdfPCell(new Phrase(third, rowFont)));
+        table.AddCell(new PdfPCell(new Phrase(fourth, rowFont)));
     }
 
     private static string GetValidInput(string prompt, string[] validOptions = null)
