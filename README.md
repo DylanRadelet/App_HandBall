@@ -13,7 +13,7 @@ Cette application console génère un fichier PDF qui résume les événements d
 Assurez-vous d'avoir installé les packages suivants :
 
 - **iTextSharp** pour la génération de PDF.
-- **HtmlAgilityPack** pour le parsing HTML.
+- **HtmlAgilityPack** pour le parsing HTML. ```bash  dotnet add package HtmlAgilityPack ```
 - **Selenium WebDriver** pour la navigation automatique (et le driver Chrome).
 - **Google Chrome** (et le chemin du driver Chrome dans votre PATH).
 
